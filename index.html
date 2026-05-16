@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Tank Pocket Battle</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f2f4e9;
+      --muted: #c3cab4;
+      --panel: rgba(20, 26, 22, 0.74);
+      --line: rgba(242, 244, 233, 0.2);
+      --green: #9bd36a;
+      --sand: #d7b56d;
+      --red: #ff6f5e;
+      --sky: #7ec8ff;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 22% 16%, rgba(126, 200, 255, 0.18), transparent 30%),
+        linear-gradient(135deg, #17221b, #0b1310 56%, #060908);
+      color: var(--ink);
+      font-family: ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: none;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+        env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    .game {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      max-width: 980px;
+      max-height: 560px;
+      overflow: hidden;
+      background: #152116;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .box {
+      min-width: 92px;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+      font-size: 13px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .box span {
+      color: var(--sand);
+      margin-left: 4px;
+    }
+
+    .controls {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .stick-zone, .fire-zone {
+      position: absolute;
+      bottom: 0;
+      height: 70%;
+      pointer-events: auto;
+    }
+
+    .stick-zone {
+      left: 0;
+      width: 48%;
+    }
+
+    .fire-zone {
+      right: 0;
+      width: 42%;
+    }
+
+    .stick {
+      position: absolute;
+      left: clamp(34px, 13vw, 96px);
+      bottom: clamp(28px, 9vh, 58px);
+      width: 112px;
+      height: 112px;
+      border: 1px solid rgba(242, 244, 233, 0.22);
+      border-radius: 50%;
+      background: rgba(242, 244, 233, 0.08);
+      box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.28);
+    }
+
+    .nub {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 46px;
+      height: 46px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 22px rgba(155, 211, 106, 0.32);
+    }
+
+    .fire {
+      position: absolute;
+      right: clamp(22px, 8vw, 72px);
+      bottom: clamp(24px, 8vh, 54px);
+      width: 106px;
+      height: 106px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 50%;
+      color: #210b07;
+      background: radial-gradient(circle at 35% 30%, #ffd2a4, #ff8f58 62%, #df513e);
+      font: inherit;
+      font-size: 19px;
+      font-weight: 900;
+      box-shadow: 0 14px 34px rgba(255, 111, 94, 0.25);
+      pointer-events: auto;
+    }
+
+    .fire:active { transform: scale(0.96); }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(4, 8, 6, 0.28), rgba(4, 8, 6, 0.78));
+    }
+
+    .overlay.hidden { display: none; }
+
+    .card {
+      width: min(440px, 92vw);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(18, 25, 20, 0.88);
+      backdrop-filter: blur(14px);
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    h1 {
+      margin: 0 0 9px;
+      font-size: clamp(34px, 7vw, 52px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 auto;
+      max-width: 30em;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .start {
+      width: min(240px, 78%);
+      height: 48px;
+      margin-top: 18px;
+      border: 0;
+      border-radius: 8px;
+      color: #101609;
+      background: var(--green);
+      font: inherit;
+      font-weight: 900;
+    }
+
+    .rotate {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: #111811;
+      text-align: center;
+    }
+
+    .rotate div {
+      max-width: 300px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink);
+    }
+
+    @media (orientation: portrait) {
+      .rotate { display: grid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game" aria-label="Tank Pocket Battle">
+    <canvas id="canvas" aria-hidden="true"></canvas>
+    <section class="hud">
+      <div class="box">SCORE <span id="score">0</span></div>
+      <div class="box">HP <span id="hp">5</span></div>
+      <div class="box">WAVE <span id="wave">1</span></div>
+    </section>
+    <section class="controls">
+      <div class="stick-zone" id="stickZone">
+        <div class="stick" id="stick"><div class="nub" id="nub"></div></div>
+      </div>
+      <div class="fire-zone" id="fireZone">
+        <button class="fire" id="fire" aria-label="發射">FIRE</button>
+      </div>
+    </section>
+    <section class="overlay" id="overlay">
+      <div class="card">
+        <h1>Tank Pocket Battle</h1>
+        <p id="message">手機橫放。左手拖曳控制坦克移動和方向，右手按 FIRE 發射。打掉敵方坦克，別撞到岩石。</p>
+        <button class="start" id="start">開始作戰</button>
+      </div>
+    </section>
+    <section class="rotate"><div>請把手機橫放再玩。左手控制方向，右手發射。</div></section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const game = document.querySelector(".game");
+      const overlay = document.getElementById("overlay");
+      const startBtn = document.getElementById("start");
+      const msg = document.getElementById("message");
+      const scoreEl = document.getElementById("score");
+      const hpEl = document.getElementById("hp");
+      const waveEl = document.getElementById("wave");
+      const stickZone = document.getElementById("stickZone");
+      const stick = document.getElementById("stick");
+      const nub = document.getElementById("nub");
+      const fireBtn = document.getElementById("fire");
+
+      const DPR = Math.min(devicePixelRatio || 1, 2);
+      let w = 900;
+      let h = 500;
+      let last = 0;
+      let state = "ready";
+      let score = 0;
+      let hp = 5;
+      let wave = 1;
+      let enemyTimer = 0;
+      let fireCooldown = 0;
+      let shake = 0;
+      let muted = false;
+      let audio;
+
+      const input = { x: 0, y: 0, active: false, fire: false };
+      const player = { x: 160, y: 250, angle: 0, r: 22, speed: 0 };
+      const bullets = [];
+      const enemies = [];
+      const rocks = [];
+      const dust = [];
+
+      const rand = (a, b) => a + Math.random() * (b - a);
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const TAU = Math.PI * 2;
+
+      function resize() {
+        const r = game.getBoundingClientRect();
+        w = Math.max(520, Math.floor(r.width));
+        h = Math.max(300, Math.floor(r.height));
+        canvas.width = Math.floor(w * DPR);
+        canvas.height = Math.floor(h * DPR);
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      }
+
+      function beep(freq, duration, type = "square", gain = 0.035) {
+        if (muted) return;
+        audio ||= new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audio.createOscillator();
+        const vol = audio.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        vol.gain.value = gain;
+        osc.connect(vol).connect(audio.destination);
+        osc.start();
+        vol.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + duration);
+        osc.stop(audio.currentTime + duration);
+      }
+
+      function reset() {
+        state = "play";
+        score = 0;
+        hp = 5;
+        wave = 1;
+        enemyTimer = 600;
+        fireCooldown = 0;
+        player.x = w * 0.22;
+        player.y = h * 0.5;
+        player.angle = 0;
+        bullets.length = 0;
+        enemies.length = 0;
+        rocks.length = 0;
+        dust.length = 0;
+        makeRocks();
+        spawnEnemy();
+        spawnEnemy();
+        overlay.classList.add("hidden");
+        updateHud();
+        beep(320, 0.08, "triangle");
+      }
+
+      function updateHud() {
+        scoreEl.textContent = score;
+        hpEl.textContent = hp;
+        waveEl.textContent = wave;
+      }
+
+      function endGame() {
+        state = "over";
+        msg.textContent = "作戰結束。這次打掉 " + score + " 台敵方坦克。";
+        startBtn.textContent = "再打一場";
+        overlay.classList.remove("hidden");
+        beep(90, 0.28, "sawtooth", 0.03);
+      }
+
+      function makeRocks() {
+        for (let i = 0; i < 7; i++) {
+          rocks.push({
+            x: rand(w * 0.25, w * 0.88),
+            y: rand(70, h - 70),
+            r: rand(18, 33),
+            sides: Math.floor(rand(6, 9)),
+            spin: rand(0, TAU)
+          });
+        }
+      }
+
+      function spawnEnemy() {
+        const side = Math.random() < 0.5 ? "right" : "top";
+        const e = {
+          x: side === "right" ? w + 40 : rand(w * 0.48, w - 50),
+          y: side === "right" ? rand(55, h - 55) : -40,
+          angle: Math.PI,
+          r: 21,
+          hp: wave > 3 ? 2 : 1,
+          fire: rand(850, 1500),
+          speed: rand(0.52, 0.8) + wave * 0.035
+        };
+        enemies.push(e);
+      }
+
+      function shoot(owner, x, y, angle) {
+        const speed = owner === "player" ? 6.4 : 3.2;
+        bullets.push({
+          owner,
+          x: x + Math.cos(angle) * 28,
+          y: y + Math.sin(angle) * 28,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: owner === "player" ? 88 : 135,
+          r: owner === "player" ? 5 : 4
+        });
+        pop(x + Math.cos(angle) * 32, y + Math.sin(angle) * 32, owner === "player" ? "#ffd66b" : "#ff7b6e", 5);
+        beep(owner === "player" ? 150 : 115, 0.045, "square", owner === "player" ? 0.03 : 0.02);
+      }
+
+      function pop(x, y, color, n = 12) {
+        for (let i = 0; i < n; i++) {
+          const a = rand(0, TAU);
+          const s = rand(0.5, 3.2);
+          dust.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(16, 34), color });
+        }
+      }
+
+      function hurtPlayer() {
+        hp -= 1;
+        shake = 10;
+        pop(player.x, player.y, "#ff6f5e", 22);
+        updateHud();
+        if (hp <= 0) endGame();
+      }
+
+      function update(dt) {
+        if (state !== "play") return;
+        fireCooldown = Math.max(0, fireCooldown - dt);
+        enemyTimer -= dt;
+        if (enemyTimer <= 0) {
+          spawnEnemy();
+          enemyTimer = Math.max(900, 2100 - wave * 110);
+        }
+
+        if (input.active && Math.hypot(input.x, input.y) > 0.12) {
+          player.angle = Math.atan2(input.y, input.x);
+          player.speed = Math.min(2.4, Math.hypot(input.x, input.y) * 2.4);
+        } else {
+          player.speed *= 0.82;
+        }
+
+        player.x += Math.cos(player.angle) * player.speed * dt * 0.06;
+        player.y += Math.sin(player.angle) * player.speed * dt * 0.06;
+        player.x = clamp(player.x, 32, w - 32);
+        player.y = clamp(player.y, 46, h - 32);
+
+        for (const rock of rocks) {
+          const d = Math.hypot(player.x - rock.x, player.y - rock.y);
+          if (d < player.r + rock.r - 4) {
+            const a = Math.atan2(player.y - rock.y, player.x - rock.x);
+            player.x = rock.x + Math.cos(a) * (player.r + rock.r - 4);
+            player.y = rock.y + Math.sin(a) * (player.r + rock.r - 4);
+          }
+        }
+
+        if (input.fire && fireCooldown <= 0) {
+          shoot("player", player.x, player.y, player.angle);
+          fireCooldown = 330;
+        }
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const e = enemies[i];
+          const a = Math.atan2(player.y - e.y, player.x - e.x);
+          e.angle += Math.atan2(Math.sin(a - e.angle), Math.cos(a - e.angle)) * 0.04;
+          const awayFromRock = rocks.some(r => Math.hypot(e.x - r.x, e.y - r.y) < r.r + 28);
+          const move = awayFromRock ? -0.45 : e.speed;
+          e.x += Math.cos(e.angle) * move * dt * 0.04;
+          e.y += Math.sin(e.angle) * move * dt * 0.04;
+          e.fire -= dt;
+          if (e.fire <= 0 && Math.hypot(player.x - e.x, player.y - e.y) < 520) {
+            shoot("enemy", e.x, e.y, e.angle);
+            e.fire = rand(1300, 2100);
+          }
+          if (Math.hypot(player.x - e.x, player.y - e.y) < player.r + e.r) {
+            enemies.splice(i, 1);
+            hurtPlayer();
+          }
+        }
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const b = bullets[i];
+          b.x += b.vx * dt * 0.06;
+          b.y += b.vy * dt * 0.06;
+          b.life -= dt * 0.06;
+          let remove = b.life <= 0 || b.x < -20 || b.y < -20 || b.x > w + 20 || b.y > h + 20;
+          for (const rock of rocks) {
+            if (!remove && Math.hypot(b.x - rock.x, b.y - rock.y) < b.r + rock.r) {
+              pop(b.x, b.y, "#c9b077", 8);
+              remove = true;
+            }
+          }
+          if (!remove && b.owner === "player") {
+            for (let j = enemies.length - 1; j >= 0; j--) {
+              const e = enemies[j];
+              if (Math.hypot(b.x - e.x, b.y - e.y) < b.r + e.r) {
+                e.hp -= 1;
+                pop(e.x, e.y, "#ffd66b", 18);
+                remove = true;
+                if (e.hp <= 0) {
+                  enemies.splice(j, 1);
+                  score += 1;
+                  wave = 1 + Math.floor(score / 5);
+                  updateHud();
+                  beep(420, 0.07, "triangle", 0.028);
+                }
+                break;
+              }
+            }
+          }
+          if (!remove && b.owner === "enemy" && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) {
+            remove = true;
+            hurtPlayer();
+          }
+          if (remove) bullets.splice(i, 1);
+        }
+
+        for (let i = dust.length - 1; i >= 0; i--) {
+          const p = dust[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.94;
+          p.vy *= 0.94;
+          p.life -= dt * 0.06;
+          if (p.life <= 0) dust.splice(i, 1);
+        }
+        shake = Math.max(0, shake - dt * 0.06);
+      }
+
+      function drawGround() {
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, "#22321d");
+        g.addColorStop(0.52, "#152416");
+        g.addColorStop(1, "#0e1710");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = "rgba(242, 244, 233, 0.06)";
+        ctx.lineWidth = 1;
+        for (let x = -40; x < w + 40; x += 58) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x - 100, h);
+          ctx.stroke();
+        }
+        for (let y = 30; y < h; y += 54) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y + 22);
+          ctx.stroke();
+        }
+      }
+
+      function drawRock(r) {
+        ctx.save();
+        ctx.translate(r.x, r.y);
+        ctx.rotate(r.spin);
+        ctx.fillStyle = "#6b654f";
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < r.sides; i++) {
+          const a = i / r.sides * TAU;
+          const rr = r.r * (0.78 + (i % 2) * 0.24);
+          const x = Math.cos(a) * rr;
+          const y = Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawTank(tank, isPlayer) {
+        ctx.save();
+        ctx.translate(tank.x, tank.y);
+        ctx.rotate(tank.angle);
+        const body = isPlayer ? "#759f4b" : "#9d5847";
+        const trim = isPlayer ? "#c9f28c" : "#ffc0a4";
+        ctx.shadowColor = isPlayer ? "rgba(155, 211, 106, 0.35)" : "rgba(255, 111, 94, 0.28)";
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = "rgba(0,0,0,0.28)";
+        ctx.fillRect(-20, -25, 40, 50);
+        ctx.fillStyle = body;
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-20, -17, 40, 34, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = trim;
+        ctx.fillRect(0, -5, 32, 10);
+        ctx.beginPath();
+        ctx.arc(0, 0, 13, 0, TAU);
+        ctx.fillStyle = isPlayer ? "#5c853e" : "#7f4035";
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0,0,0,0.24)";
+        ctx.fillRect(-17, -21, 34, 5);
+        ctx.fillRect(-17, 16, 34, 5);
+        ctx.restore();
+      }
+
+      function render() {
+        ctx.save();
+        if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
+        drawGround();
+        for (const r of rocks) drawRock(r);
+        for (const b of bullets) {
+          ctx.fillStyle = b.owner === "player" ? "#ffd66b" : "#ff826f";
+          ctx.shadowColor = ctx.fillStyle;
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, TAU);
+          ctx.fill();
+        }
+        for (const e of enemies) drawTank(e, false);
+        drawTank(player, true);
+        ctx.shadowBlur = 0;
+        for (const p of dust) {
+          ctx.globalAlpha = Math.max(0, p.life / 34);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
+      function loop(now) {
+        const dt = Math.min(34, now - last || 16);
+        last = now;
+        update(dt);
+        render();
+        requestAnimationFrame(loop);
+      }
+
+      function setStickFromEvent(e) {
+        const rect = stick.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        const len = Math.min(48, Math.hypot(dx, dy));
+        const a = Math.atan2(dy, dx);
+        input.x = Math.cos(a) * len / 48;
+        input.y = Math.sin(a) * len / 48;
+        nub.style.transform = "translate(calc(-50% + " + Math.cos(a) * len + "px), calc(-50% + " + Math.sin(a) * len + "px))";
+      }
+
+      stickZone.addEventListener("pointerdown", (e) => {
+        stickZone.setPointerCapture(e.pointerId);
+        input.active = true;
+        setStickFromEvent(e);
+      });
+      stickZone.addEventListener("pointermove", (e) => {
+        if (input.active) setStickFromEvent(e);
+      });
+      stickZone.addEventListener("pointerup", () => {
+        input.active = false;
+        input.x = 0;
+        input.y = 0;
+        nub.style.transform = "translate(-50%, -50%)";
+      });
+      stickZone.addEventListener("pointercancel", () => {
+        input.active = false;
+        input.x = 0;
+        input.y = 0;
+        nub.style.transform = "translate(-50%, -50%)";
+      });
+
+      fireBtn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        input.fire = true;
+        if (state === "ready" || state === "over") reset();
+      });
+      fireBtn.addEventListener("pointerup", () => input.fire = false);
+      fireBtn.addEventListener("pointercancel", () => input.fire = false);
+      fireBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+
+      startBtn.addEventListener("click", reset);
+      addEventListener("keydown", (e) => {
+        if (e.code === "Space") input.fire = true;
+        if (e.code === "Enter" && state !== "play") reset();
+        if (e.code === "ArrowLeft" || e.code === "KeyA") input.x = -1, input.active = true;
+        if (e.code === "ArrowRight" || e.code === "KeyD") input.x = 1, input.active = true;
+        if (e.code === "ArrowUp" || e.code === "KeyW") input.y = -1, input.active = true;
+        if (e.code === "ArrowDown" || e.code === "KeyS") input.y = 1, input.active = true;
+      });
+      addEventListener("keyup", (e) => {
+        if (e.code === "Space") input.fire = false;
+        if (/Arrow|Key[AWSD]/.test(e.code)) input.active = false, input.x = 0, input.y = 0;
+      });
+
+      if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+          const r = Math.min(radius, Math.abs(width) / 2, Math.abs(height) / 2);
+          this.beginPath();
+          this.moveTo(x + r, y);
+          this.arcTo(x + width, y, x + width, y + height, r);
+          this.arcTo(x + width, y + height, x, y + height, r);
+          this.arcTo(x, y + height, x, y, r);
+          this.arcTo(x, y, x + width, y, r);
+          this.closePath();
+          return this;
+        };
+      }
+
+      resize();
+      addEventListener("resize", resize);
+      updateHud();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
